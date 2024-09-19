@@ -1,0 +1,30 @@
+[
+    {
+      "model": "shopping_list.ShoppingItem",
+      "fields": {
+        "name": "Pineapple",
+        "purchased": true
+      }
+    },
+    {
+      "model": "shopping_list.ShoppingItem",
+      "fields": {
+        "name": "Broccoli",
+        "purchased": false
+      }
+    },
+    {
+      "model": "shopping_list.ShoppingItem",
+      "fields": {
+        "name": "Chocolate",
+        "purchased": false
+      }
+    },
+    {
+      "model": "shopping_list.ShoppingItem",
+      "fields": {
+        "name": "Milk",
+        "purchased": true
+      }
+    }
+  ]
