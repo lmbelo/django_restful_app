@@ -1,11 +1,12 @@
 import pytest
 from datetime import datetime, timedelta
+from unittest import mock
 from django.urls import reverse
-from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.test import APIClient
 from shopping_list.models import ShoppingList, ShoppingItem
-from unittest import mock
+from shopping_list.models import User
+
 
 @pytest.mark.django_db
 def test_valid_shopping_list_is_created(create_user, create_authenticated_client):
@@ -516,3 +517,262 @@ def test_shopping_lists_order_changed_when_item_marked_purchased(create_user, cr
 
     assert response.data["results"][1]["name"] == "Recent"
     assert response.data["results"][0]["name"] == "Older"
+
+
+@pytest.mark.django_db
+def test_call_with_token_authentication():
+    username = "GirlThatLovesToCode"
+    password = "something"
+    User.objects.create_user(username, password=password)
+
+    client = APIClient()
+    token_url = reverse("api_token_auth")
+
+    data = {
+        "username": username,
+        "password": password
+    }
+
+    token_response = client.post(token_url, data, format="json")
+    token = token_response.data["token"]
+
+    url = reverse("all-shopping-lists")
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token}")
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.django_db
+def test_add_members_list_member(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    another_member = User.objects.create(username="another_member", password="whocares")
+    third_member = User.objects.create(username="third_member", password="whocares")
+
+    data = {"members": [another_member.id, third_member.id]}
+
+    url = reverse("shopping-list-add-members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert len(response.data["members"]) == 3
+    assert another_member.id in response.data["members"]
+    assert third_member.id in response.data["members"]
+
+
+@pytest.mark.django_db
+def test_add_members_not_list_member(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    list_creator = User.objects.create(username="list_creator", password="whocares")
+    shopping_list = create_shopping_list("Groceries", list_creator)
+
+
+    data = {"members": [user.id]}
+
+    url = reverse("shopping-list-add-members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_add_members_wrong_data(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    data = {"members": [11, 13]}
+
+    url = reverse("shopping-list-add-members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_remove_members_list_member(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    another_member = User.objects.create(username="another_member", password="whocares")
+    third_member = User.objects.create(username="third_member", password="whocares")
+
+    shopping_list.members.add(another_member)
+    shopping_list.members.add(third_member)
+
+    data = {"members": [another_member.id, third_member.id]}
+
+    url = reverse("shopping-list-remove-members", args=[shopping_list.id])
+    response = client.put(url, data, format="json")
+
+    assert len(response.data["members"]) == 1
+    assert another_member.id not in response.data["members"]
+    assert third_member.id not in response.data["members"]
+
+
+@pytest.mark.django_db
+def test_remove_members_not_list_member(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    list_creator = User.objects.create(username="list_creator", password="whocares")
+    shopping_list = create_shopping_list("Groceries", list_creator)
+
+    data = {"members": [user.id]}
+
+    url = reverse("shopping-list-remove-members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_remove_members_wrong_data(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    data = {"members": [11, 13]}
+
+    url = reverse("shopping-list-remove-members", args=[shopping_list.id])
+
+    response = client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_search_returns_corresponding_shopping_item(create_user, create_authenticated_client, create_shopping_item):
+    user = create_user()
+    client = create_authenticated_client(user)
+
+    create_shopping_item("Chocolate", user)
+    create_shopping_item("Skim milk", user)
+
+    search_param = "?search=milk"
+    url = reverse("search-shopping-items") + search_param
+
+    response = client.get(url)
+
+    assert len(response.data["results"]) == 1
+    assert response.data["results"][0]["name"] == "Skim milk"
+
+
+@pytest.mark.django_db
+def test_search_returns_only_users_results(create_user, create_authenticated_client, create_shopping_item):
+    user = create_user()
+    client = create_authenticated_client(user)
+    another_user = User.objects.create_user("SomeOtherUser", "someother@user.com", "something")
+
+    create_shopping_item("Milk", user)
+    create_shopping_item("Milk", another_user)
+
+    search_param = "?search=milk"
+    url = reverse("search-shopping-items") + search_param
+
+    response = client.get(url)
+
+    assert len(response.data["results"]) == 1
+
+
+@pytest.mark.django_db
+def test_order_shopping_items_names_ascending(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    ShoppingItem.objects.create(name="Bananas", purchased=False, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Apples", purchased=False, shopping_list=shopping_list)
+
+    order_param = "?ordering=name"
+    url = reverse("list-add-shopping-item", args=[shopping_list.id]) + order_param
+
+    response = client.get(url)
+
+    assert response.data["results"][0]["name"] == "Apples"
+    assert response.data["results"][1]["name"] == "Bananas"
+
+
+@pytest.mark.django_db
+def test_order_shopping_items_names_descending(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    ShoppingItem.objects.create(name="Apples", purchased=False, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Bananas", purchased=False, shopping_list=shopping_list)
+
+    order_param = "?ordering=-name"
+    url = reverse("list-add-shopping-item", args=[shopping_list.id]) + order_param
+
+    response = client.get(url)
+
+    assert response.data["results"][0]["name"] == "Bananas"
+    assert response.data["results"][1]["name"] == "Apples"
+
+
+@pytest.mark.django_db
+def test_order_shopping_items_unpurchased_first(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    ShoppingItem.objects.create(name="Apples", purchased=False, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Bananas", purchased=True, shopping_list=shopping_list)
+
+    order_param = "?ordering=purchased"
+    url = reverse("list-add-shopping-item", args=[shopping_list.id]) + order_param
+
+    response = client.get(url)
+
+    assert response.data["results"][0]["name"] == "Apples"
+    assert response.data["results"][1]["name"] == "Bananas"
+
+
+@pytest.mark.django_db
+def test_order_shopping_items_purchased_first(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    ShoppingItem.objects.create(name="Apples", purchased=False, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Bananas", purchased=True, shopping_list=shopping_list)
+
+    order_param = "?ordering=-purchased"
+    url = reverse("list-add-shopping-item", args=[shopping_list.id]) + order_param
+
+    response = client.get(url)
+
+    assert response.data["results"][0]["name"] == "Bananas"
+    assert response.data["results"][1]["name"] == "Apples"
+
+
+@pytest.mark.django_db
+def test_order_shopping_items_purchased_and_names(create_user, create_authenticated_client, create_shopping_list):
+    user = create_user()
+    client = create_authenticated_client(user)
+    shopping_list = create_shopping_list("Groceries", user)
+
+    ShoppingItem.objects.create(name="Apples", purchased=True, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Bananas", purchased=False, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Coconut", purchased=True, shopping_list=shopping_list)
+    ShoppingItem.objects.create(name="Dates", purchased=False, shopping_list=shopping_list)
+
+    order_param = "?ordering=purchased,name"
+    url = reverse("list-add-shopping-item", args=[shopping_list.id]) + order_param
+
+    response = client.get(url)
+
+    assert response.data["results"][0]["name"] == "Bananas"
+    assert response.data["results"][1]["name"] == "Dates"
+    assert response.data["results"][2]["name"] == "Apples"
+    assert response.data["results"][3]["name"] == "Coconut"
