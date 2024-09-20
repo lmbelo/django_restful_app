@@ -12,7 +12,7 @@ class ShoppingItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data, **kwargs):
 
-        validated_data['shopping_list_id'] = self.context['request'].parse_context['kwargs']['pk']
+        validated_data['shopping_list_id'] = self.context['request'].parser_context['kwargs']['pk']
         return super(ShoppingItemSerializer, self).create(validated_data)
 
 
