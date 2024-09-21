@@ -1,7 +1,8 @@
 from typing import List, TypedDict
+
 from rest_framework import serializers
-from shopping_list.models import User
-from shopping_list.models import ShoppingItem, ShoppingList
+
+from shopping_list.models import ShoppingItem, ShoppingList, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -22,8 +23,10 @@ class ShoppingItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data, **kwargs):
 
-        validated_data['shopping_list_id'] = self.context['request'].parser_context['kwargs']['pk']
-        
+        validated_data["shopping_list_id"] = self.context["request"].parser_context[
+            "kwargs"
+        ]["pk"]
+
         if ShoppingList.objects.get(
             id=self.context["request"].parser_context["kwargs"]["pk"]
         ).shopping_items.filter(name=validated_data["name"], purchased=False):
@@ -44,11 +47,14 @@ class ShoppingListSerializer(serializers.ModelSerializer):
     class Meta:
 
         model = ShoppingList
-        fields = ['id', 'name', 'unpurchased_items', 'members']
+        fields = ["id", "name", "unpurchased_items", "members"]
 
     def get_unpurchased_items(self, obj) -> List[UnpurchasedItem]:
-        return [{"name": shopping_item.name} for shopping_item in obj.shopping_items.filter(purchased=False)][:3]
-    
+        return [
+            {"name": shopping_item.name}
+            for shopping_item in obj.shopping_items.filter(purchased=False)
+        ][:3]
+
 
 class AddMemberSerializer(serializers.ModelSerializer):
 
@@ -62,7 +68,7 @@ class AddMemberSerializer(serializers.ModelSerializer):
             instance.save()
 
         return instance
-    
+
 
 class RemoveMemberSerializer(serializers.ModelSerializer):
     class Meta:

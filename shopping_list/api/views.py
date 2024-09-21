@@ -1,21 +1,21 @@
-from rest_framework import generics, status, filters
+from drf_spectacular.utils import extend_schema
+from rest_framework import filters, generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from shopping_list.api.serializers import (
-    ShoppingItemSerializer, 
-    ShoppingListSerializer, 
-    AddMemberSerializer,
-    RemoveMemberSerializer)
-from shopping_list.models import (
-    ShoppingList, 
-    ShoppingItem)
+
+from shopping_list.api.pagination import LargerResultsSetPagination
 from shopping_list.api.permissions import (
     AllShoppingItemsShoppingListMembersOnly,
     ShoppingItemShoppingListMembersOnly,
     ShoppingListMembersOnly,
 )
-from shopping_list.api.pagination import LargerResultsSetPagination
-from drf_spectacular.utils import extend_schema
+from shopping_list.api.serializers import (
+    AddMemberSerializer,
+    RemoveMemberSerializer,
+    ShoppingItemSerializer,
+    ShoppingListSerializer,
+)
+from shopping_list.models import ShoppingItem, ShoppingList
 
 
 @extend_schema(
@@ -23,7 +23,6 @@ from drf_spectacular.utils import extend_schema
     description="Returns the list of all shopping lists user is a member of. Each shopping list includes a few unpurchased shopping items. Users can add a new shopping list.",
 )
 class ListAddShoppingList(generics.ListCreateAPIView):
-
     """
     Returns the list of all shopping lists user is a member of. Each shopping list includes a few unpurchased shopping items.
     Users can add a new shopping list.
@@ -37,10 +36,12 @@ class ListAddShoppingList(generics.ListCreateAPIView):
         shopping_list = serializer.save()
         shopping_list.members.add(self.request.user)
         return shopping_list
-    
+
     def get_queryset(self):
-        return ShoppingList.objects.filter(members=self.request.user).order_by("-last_interaction")
-    
+        return ShoppingList.objects.filter(members=self.request.user).order_by(
+            "-last_interaction"
+        )
+
 
 class ShoppingListDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = ShoppingList.objects.all()
@@ -70,18 +71,17 @@ class ListAddShoppingItem(generics.ListCreateAPIView):
 
     def get_queryset(self):
         shopping_list = self.kwargs["pk"]
-        queryset = ShoppingItem.objects.filter(shopping_list=shopping_list).order_by("purchased")
+        queryset = ShoppingItem.objects.filter(shopping_list=shopping_list).order_by(
+            "purchased"
+        )
 
         return queryset
-    
+
 
 class ShoppingListAddMembers(APIView):
     permission_classes = [ShoppingListMembersOnly]
 
-    @extend_schema(
-        request=AddMemberSerializer,
-        responses=AddMemberSerializer
-    )
+    @extend_schema(request=AddMemberSerializer, responses=AddMemberSerializer)
     def put(self, request, pk, format=None):
         shopping_list = ShoppingList.objects.get(pk=pk)
         serializer = AddMemberSerializer(shopping_list, data=request.data)
@@ -92,15 +92,12 @@ class ShoppingListAddMembers(APIView):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 
 class ShoppingListRemoveMembers(APIView):
     permission_classes = [ShoppingListMembersOnly]
 
-    @extend_schema(
-        request=RemoveMemberSerializer,
-        responses=RemoveMemberSerializer
-    )
+    @extend_schema(request=RemoveMemberSerializer, responses=RemoveMemberSerializer)
     def put(self, request, pk, format=None):
         shopping_list = ShoppingList.objects.get(pk=pk)
         serializer = RemoveMemberSerializer(shopping_list, data=request.data)
@@ -111,7 +108,7 @@ class ShoppingListRemoveMembers(APIView):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 
 class SearchShoppingItems(generics.ListAPIView):
     serializer_class = ShoppingItemSerializer
