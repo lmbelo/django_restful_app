@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 import os
+import dj_database_url
 from pathlib import Path
 from django.core.management.utils import get_random_secret_key
 
@@ -99,6 +100,7 @@ DATABASES = {
     }
 }
 
+DATABASES["default"] = dj_database_url.config(default="sqlite:///db.sqlite3")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
