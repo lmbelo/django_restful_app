@@ -73,4 +73,4 @@ RUN chown -R app:app $HOME
 USER app
 
 # serve the application
-CMD gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
+CMD ./start_app.sh
